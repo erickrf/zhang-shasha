@@ -90,10 +90,11 @@ class Operation(object):
     update = 2
     match = 3
 
-    def __init__(self, op, arg1=None, arg2=None):
+    def __init__(self, op, arg1=None, arg2=None, cost=None):
         self.type = op
         self.arg1 = arg1
         self.arg2 = arg2
+        self.cost = cost
 
     def __repr__(self):
         if self.type == self.remove:
@@ -222,12 +223,14 @@ def distance(A, B, get_children, insert_cost, remove_cost, update_cost,
 
         for x in range(1, m): # δ(l(i1)..i, θ) = δ(l(1i)..1-1, θ) + γ(v → λ)
             node = An[x+ioff]
-            fd[x][0] = fd[x-1][0] + remove_cost(node)
-            partial_ops[x][0].append(Operation(REMOVE, node))
+            cost = remove_cost(node)
+            fd[x][0] = fd[x-1][0] + cost
+            partial_ops[x][0].append(Operation(REMOVE, node, cost=cost))
         for y in range(1, n): # δ(θ, l(j1)..j) = δ(θ, l(j1)..j-1) + γ(λ → w)
             node = Bn[y+joff]
-            fd[0][y] = fd[0][y-1] + insert_cost(node)
-            partial_ops[0][y].append(Operation(INSERT, arg2=node))
+            cost = insert_cost(node)
+            fd[0][y] = fd[0][y-1] + cost
+            partial_ops[0][y].append(Operation(INSERT, arg2=node, cost=cost))
 
         for x in range(1, m):  # the plus one is for the xrange impl
             for y in range(1, n):
@@ -235,6 +238,11 @@ def distance(A, B, get_children, insert_cost, remove_cost, update_cost,
                 # the treedists table (same for y and y+joff)
                 node1 = An[x+ioff]
                 node2 = Bn[y+joff]
+
+                cost_remove = remove_cost(node1)
+                cost_insert = insert_cost(node2)
+                cost_update = update_cost(node1, node2)
+
                 # only need to check if x is an ancestor of i
                 # and y is an ancestor of j
                 if Al[i] == Al[x+ioff] and Bl[j] == Bl[y+joff]:
@@ -243,21 +251,21 @@ def distance(A, B, get_children, insert_cost, remove_cost, update_cost,
                     # δ(F1 , F2 ) = min-+ δ(l(i1)..i , l(j1)..j-1) + γ(λ → w)
                     #                   | δ(l(i1)..i-1, l(j1)..j-1) + γ(v → w)
                     #                   +-
-                    costs = [fd[x-1][y] + remove_cost(node1),
-                             fd[x][y-1] + insert_cost(node2),
-                             fd[x-1][y-1] + update_cost(node1, node2)]
+                    costs = [fd[x-1][y] + cost_remove,
+                             fd[x][y-1] + cost_insert,
+                             fd[x-1][y-1] + cost_update]
                     fd[x][y] = min(costs)
                     min_index = costs.index(fd[x][y])
 
                     if min_index == 0:
-                        op = Operation(REMOVE, node1)
+                        op = Operation(REMOVE, node1, cost=cost_remove)
                         partial_ops[x][y] = partial_ops[x-1][y] + [op]
                     elif min_index == 1:
-                        op = Operation(INSERT, arg2=node2)
+                        op = Operation(INSERT, arg2=node2, cost=cost_insert)
                         partial_ops[x][y] = partial_ops[x][y - 1] + [op]
                     else:
-                        op_type = MATCH if fd[x][y] == fd[x-1][y-1] else UPDATE
-                        op = Operation(op_type, node1, node2)
+                        op_type = MATCH if cost_update == 0 else UPDATE
+                        op = Operation(op_type, node1, node2, cost_update)
                         partial_ops[x][y] = partial_ops[x - 1][y - 1] + [op]
 
                     operations[x + ioff][y + joff] = partial_ops[x][y]
@@ -271,16 +279,16 @@ def distance(A, B, get_children, insert_cost, remove_cost, update_cost,
                     #                   +-
                     p = Al[x+ioff]-1-ioff
                     q = Bl[y+joff]-1-joff
-                    costs = [fd[x-1][y] + remove_cost(node1),
-                             fd[x][y-1] + insert_cost(node2),
+                    costs = [fd[x-1][y] + cost_remove,
+                             fd[x][y-1] + cost_insert,
                              fd[p][q] + treedists[x+ioff][y+joff]]
                     fd[x][y] = min(costs)
                     min_index = costs.index(fd[x][y])
                     if min_index == 0:
-                        op = Operation(REMOVE, node1)
+                        op = Operation(REMOVE, node1, cost=cost_remove)
                         partial_ops[x][y] = partial_ops[x-1][y] + [op]
                     elif min_index == 1:
-                        op = Operation(INSERT, arg2=node2)
+                        op = Operation(INSERT, arg2=node2, cost=cost_insert)
                         partial_ops[x][y] = partial_ops[x][y-1] + [op]
                     else:
                         partial_ops[x][y] = partial_ops[p][q] + \
