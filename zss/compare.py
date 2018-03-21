@@ -225,12 +225,14 @@ def distance(A, B, get_children, insert_cost, remove_cost, update_cost,
             node = An[x+ioff]
             cost = remove_cost(node)
             fd[x][0] = fd[x-1][0] + cost
-            partial_ops[x][0].append(Operation(REMOVE, node, cost=cost))
+            op = Operation(REMOVE, node, cost=cost)
+            partial_ops[x][0] = partial_ops[x-1][0] + [op]
         for y in range(1, n): # δ(θ, l(j1)..j) = δ(θ, l(j1)..j-1) + γ(λ → w)
             node = Bn[y+joff]
             cost = insert_cost(node)
             fd[0][y] = fd[0][y-1] + cost
-            partial_ops[0][y].append(Operation(INSERT, arg2=node, cost=cost))
+            op = Operation(INSERT, arg2=node, cost=cost)
+            partial_ops[0][y] = partial_ops[0][y-1] + [op]
 
         for x in range(1, m):  # the plus one is for the xrange impl
             for y in range(1, n):
